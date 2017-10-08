@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+</style>
+
+<svg width="600" height="600" id="container"></svg>
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<!--<script src='js/graph.js'></script>-->
+<script>
+var svg = d3.select('#container'),
+    width = +svg.attr("width"),
+    height = +svg.attr("height");
+
+var margin = {top: 50, right: 100, bottom: 100, left: 100};
+
+var xScale = d3.scaleBand().rangeRound([0, width-margin.right]).padding(0.1),
+    yLabelScale = d3.scaleBand().rangeRound([height - margin.top, 20]);
+    yScale = d3.scaleLinear().range([height - margin.top, 20]);
+    //survivalScale = d3.scaleLinear().range([yScale.bandwidth(), height+margin.bottom]);
+
+var focus = svg.append('g')
+               .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')')
+
+// function to convert input data from strings to floats
+var dataConverter = function(d) {
+  return {
+    "Cancer Type": d['cancer_type'],
+    "5 years": +d['5 year'],
+    "10 years": +d['10 year'],
+    "15 years": +d['15 year'],
+    "20 years": +d['20 year']
+  }
+}
+var data;
+d3.csv('cancer_survival.csv', dataConverter, function(input_data) {
+  data = input_data;
+
+  var headers = d3.keys(data[0]);
+  xScale.domain(headers);
+  yLabelScale.domain(data.map(function(d) { return d['Cancer Type']; }))
+  yScale.domain(extent(data));
+
+  focus.selectAll('.table-header')
+       .data(headers)
+       .enter()
+       .append('text')
+       .attr('text-anchor', 'middle')
+       .attr('class', 'table-header')
+       .attr('x', function(d) { return xScale(d)})
+       .text(function(d) { return d});
+
+  focus.selectAll('.table-row')
+       .data(data)
+       .enter()
+       .append('g')
+       .attr('class', 'table-row')
+       .selectAll('.datum')
+       .data(function(d) { return d3.entries(d); })
+       .enter().append('text')
+       .attr('class', 'datum')
+       .attr('y', function(d, i) {
+          if(d.key == 'Cancer Type') {
+        //    return yScale(getLeftMostValueFromKey(d.value));
+              return yLabelScale(d.value);
+          }
+         return yScale(d.value);
+       })
+       .attr('x', function(d) {
+         if(d.key == 'Cancer Type') {
+           return xScale(d.key) - xScale.bandwidth()/2;
+         }
+         return xScale(d.key);
+       })
+       .text(function(d) { return d.value});
+
+
+})
+
+function getLeftMostValueFromKey(key) {
+  var header = Object.keys(data[0]);
+  var value;
+  data.forEach(function(datum) {
+    if (datum[header[0]] == key) {
+      console.log(key + ", " + datum[header[0]] + ", " + datum[header[1]])
+      value = datum[header[1]];
+    }
+  });
+  return value;
+}
+
+function getAverageValue(d) {
+  var keys = Object.keys(d);
+  // remove the header
+  keys.shift();
+  var num = keys.length;
+  var sum = 0;
+  keys.forEach(function(key) {
+    sum += d[key];
+  })
+  return sum/num;
+}
+
+function getMaxValue(d) {
+  var keys = Object.keys(d);
+  // remove the header
+  keys.shift();
+  var max = -100000000000;
+  keys.forEach(function(key) {
+    if (d[key] > max) {
+      max = d[key];
+    }
+  })
+  return max;
+}
+
+function extent(d) {
+  var min = 10000000000;
+  var max = -100000000000;
+  var keys = Object.keys(d[0]);
+  // remove the header
+  keys.shift();
+  d.forEach(function(item) {
+    keys.forEach(function(key) {
+      if (item[key] > max) {
+        max = item[key];
+      }
+      if (item[key] < min) {
+        min = item[key];
+      }
+    })
+  })
+  return [min, max];
+}
+
+</script>

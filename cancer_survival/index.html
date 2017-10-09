@@ -15,9 +15,9 @@ var svg = d3.select('#container'),
 var margin = {top: 50, right: 100, bottom: 100, left: 100};
 
 var xScale = d3.scaleBand().rangeRound([0, width-margin.right]).padding(0.1),
-    yLabelScale = d3.scaleBand().rangeRound([height - margin.top, 20]);
+    yLabelScale = d3.scaleBand().rangeRound([height - margin.top, 20]),
     yScale = d3.scaleLinear().range([height - margin.top, 20]);
-    //survivalScale = d3.scaleLinear().range([yScale.bandwidth(), height+margin.bottom]);
+
 
 var focus = svg.append('g')
                .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')')
@@ -33,13 +33,19 @@ var dataConverter = function(d) {
   }
 }
 var data;
+var miniScale;
 d3.csv('cancer_survival.csv', dataConverter, function(input_data) {
   data = input_data;
-
+  var padding = 0;
   var headers = d3.keys(data[0]);
   xScale.domain(headers);
   yLabelScale.domain(data.map(function(d) { return d['Cancer Type']; }))
   yScale.domain(extent(data));
+  miniScale = d3.scaleLinear().range([0, height/(data.length+1)])
+  //miniScale.domain(getWidestSpread(data));
+  //TODO: fix this
+  var miniScaleSpread = [0,30.1];
+  miniScale.domain(miniScaleSpread);
 
   focus.selectAll('.table-header')
        .data(headers)
@@ -50,27 +56,38 @@ d3.csv('cancer_survival.csv', dataConverter, function(input_data) {
        .attr('x', function(d) { return xScale(d)})
        .text(function(d) { return d});
 
+  var start = 20;
+
   focus.selectAll('.table-row')
        .data(data)
        .enter()
        .append('g')
        .attr('class', 'table-row')
+       .attr('transform', function(d) {
+         var spread = getSpread(d);
+         var transform = 'translate(0, ' + (start+padding) + ')';
+         //console.log(miniScale(spread[1]-spread[0]) +', ' + yScale(spread[0]));
+         var y = miniScale.domain()[1] - (spread[1] - spread[0]);
+         console.log(y);
+         start = start + padding + miniScale(y);
+         return transform;
+       })
        .selectAll('.datum')
-       .data(function(d) { return d3.entries(d); })
+       .data(function(d) {
+         var entries = d3.entries(d);
+         entries.forEach(function(entry) {
+           entry['min'] = getMinValue(d);
+         })
+         return entries;
+       })
        .enter().append('text')
        .attr('class', 'datum')
-       .attr('y', function(d, i) {
-          if(d.key == 'Cancer Type') {
-        //    return yScale(getLeftMostValueFromKey(d.value));
-              return yLabelScale(d.value);
-          }
-         return yScale(d.value);
-       })
-       .attr('x', function(d) {
-         if(d.key == 'Cancer Type') {
-           return xScale(d.key) - xScale.bandwidth()/2;
+       .attr('transform', function(d) {
+         if (d.key == 'Cancer Type') {
+           return 'translate(' + (xScale(d.key) - xScale.bandwidth()/2) + ',0)'
          }
-         return xScale(d.key);
+         var y = miniScale.domain()[1] - (d.value-d.min);
+         return 'translate('+ xScale(d.key)+',' + miniScale(y)+')';
        })
        .text(function(d) { return d.value});
 
@@ -114,6 +131,19 @@ function getMaxValue(d) {
   return max;
 }
 
+function getMinValue(d) {
+  var keys = Object.keys(d);
+  // remove the header
+  keys.shift();
+  var min = 100000000000;
+  keys.forEach(function(key) {
+    if (d[key] < min) {
+      min = d[key];
+    }
+  })
+  return min;
+}
+
 function extent(d) {
   var min = 10000000000;
   var max = -100000000000;
@@ -131,6 +161,35 @@ function extent(d) {
     })
   })
   return [min, max];
+}
+
+function getSpread(d) {
+  var keys = Object.keys(d);
+  var min = 10000000000;
+  var max = -100000000000;
+  keys.forEach(function(key) {
+    if (d[key] > max) {
+      max = d[key];
+    }
+    if (d[key] < min) {
+      min = d[key];
+    }
+  })
+  return [min, max];
+}
+
+function getWidestSpread(d) {
+  var keys = Object.keys(d[0]);
+  // remove the header
+  keys.shift();
+  var widestSpread = [0,0];
+  d.forEach(function(item) {
+    var itemSpread = getSpread(item);
+    if (itemSpread[1] - itemSpread[0] > (widestSpread[1] - widestSpread[0])) {
+      widestSpread = itemSpread;
+    }
+  })
+  return widestSpread;
 }
 
 </script>

@@ -1,7 +1,10 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
 <style>
-
+.label-background {
+  fill: white;
+  fill-opacity: .5;
+}
 </style>
 
 <svg width="700" height="700" id="container"></svg>
@@ -14,10 +17,13 @@ var svg = d3.select('#container'),
 
 var margin = {top: 15, right: 50, bottom: 0, left: 50};
 
-var xScale = d3.scaleBand().rangeRound([0, width-margin.right]).padding(0.1);
+var xScale = d3.scaleBand().rangeRound([0, width-margin.right]).padding(0.1),
+    scaler;
 
 var focus = svg.append('g')
                .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')')
+
+var fixTransform = 'translate(' + (-margin.left) + ',' + (-margin.top-30)+')'
 
 // function to convert input data from strings to floats
 var dataConverter = function(d) {
@@ -30,8 +36,6 @@ var dataConverter = function(d) {
   }
 }
 
-
-
 function MiniScaler(d) {
   var maxSpread = getWidestSpread(d);
   this.maxDomain = maxSpread[1]-maxSpread[0];
@@ -40,19 +44,12 @@ function MiniScaler(d) {
     return value / this.maxDomain * this.maxRange;
   }
 }
-var testData = [
-  {date: 20, value: 93.24},
-  {date: 40, value: 95.35},
-  {date: 60, value: 98.84},
-  {date: 80, value: 99.92},
-  {date: 100, value: 99.80},
-  {date: 120, value: 99.47}
-];
+
 var data;
-var manualYScale;
-var scaler;
 d3.csv('cancer_survival.csv', dataConverter, function(input_data) {
   data = input_data;
+
+  // write out the header with xScale
   var headers = d3.keys(data[0]);
   xScale.domain(headers);
   focus.selectAll('.table-header')
@@ -64,9 +61,25 @@ d3.csv('cancer_survival.csv', dataConverter, function(input_data) {
        .attr('x', function(d) { return xScale(d)})
        .text(function(d) { return d});
 
+  // y value to start with
   var start = 30;
+  // padding between rows (15 seems to be about text size)
   var padding = 15;
+  // manual scale for within each row
   scaler = new MiniScaler(data)
+
+  // transform the data into something more usable
+  var lineData = [];
+  data.forEach(function(d) {
+    var entries = d3.entries(d);
+    entries.forEach(function(entry) {
+      entry['max'] = getMaxValue(d);
+    })
+    //entries.shift();
+    lineData.push(entries);
+  })
+
+  // create a g for each row, transformed down based on max value
   var rows = focus.selectAll('.table-row')
                   .data(data)
                   .enter()
@@ -79,16 +92,26 @@ d3.csv('cancer_survival.csv', dataConverter, function(input_data) {
                     start = start + padding + y;
                     return transform;
                   })
+
+  // add the line
+  var lines = rows.append('path')
+                  .datum(function(d, i) {
+                    // cuts out the key- that part won't be in the line
+                    return lineData[i].slice(1,lineData[i].length);
+                  })
+                  .attr('class', 'link')
+                  .attr('d', line)
+                  .attr('stroke', 'blue')
+                  .attr('stroke-width', 2)
+                  .attr('fill','none');
+
   var textLabels = rows.selectAll('.datum')
-                       .data(function(d) {
-                         var entries = d3.entries(d);
-                         entries.forEach(function(entry) {
-                           entry['max'] = getMaxValue(d);
-                         })
-                         return entries;
+                       .data(function(d, i) {
+                         return lineData[i]
                        })
-                       .enter().append('text')
+                       .enter().append('g')
                        .attr('class', 'datum')
+                       .append('text')
                        .attr('transform', function(d) {
                          if (d.key == 'Cancer Type') {
                            return 'translate(' + (xScale(d.key) - xScale.bandwidth()/2) + ',0)'
@@ -98,26 +121,26 @@ d3.csv('cancer_survival.csv', dataConverter, function(input_data) {
                        })
                        .text(function(d) { return d.value});
 
-      var lineData = [];
-      data.forEach(function(d) {
-        var entries = d3.entries(d);
-        entries.forEach(function(entry) {
-          entry['max'] = getMaxValue(d);
-        })
-        entries.shift();
-        lineData.push(entries);
+  var texts = [];
+  textLabels
+      .each(function(d, i) {
+        texts.push(this.getBoundingClientRect());
       })
+  console.log(texts);
+  var adjust = 12;
+  var bboxPadding = 10;
 
-      rows.append('path')
-          .datum(function(d, i) {
-            return lineData[i]
-          })
-          .attr('class', 'link')
-          .attr('d', line)
-          .attr('stroke', 'blue')
-          .attr('stroke-width', 2)
-          .attr('fill','none');
-
+  svg.selectAll('.label-background')
+      .data(texts)
+      .enter().insert('rect', ':first-child')
+      .attr('x', function(d) { return d.x - adjust; })
+      .attr('y', function(d) { return d.y - adjust; })
+      .attr('width', function(d) { return d.width + bboxPadding; })
+      .attr('height', function(d) { return d.height + bboxPadding; })
+      .attr('rx', 10)
+      .attr('ry', 10)
+      .attr('class', 'label-background')
+      //.attr('transform', fixTransform);
 })
 
 var line = d3.line()

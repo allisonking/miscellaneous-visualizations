@@ -40,9 +40,17 @@ function MiniScaler(d) {
     return value / this.maxDomain * this.maxRange;
   }
 }
-
+var testData = [
+  {date: 20, value: 93.24},
+  {date: 40, value: 95.35},
+  {date: 60, value: 98.84},
+  {date: 80, value: 99.92},
+  {date: 100, value: 99.80},
+  {date: 120, value: 99.47}
+];
 var data;
 var manualYScale;
+var scaler;
 d3.csv('cancer_survival.csv', dataConverter, function(input_data) {
   data = input_data;
   var headers = d3.keys(data[0]);
@@ -58,7 +66,7 @@ d3.csv('cancer_survival.csv', dataConverter, function(input_data) {
 
   var start = 30;
   var padding = 15;
-  var scaler = new MiniScaler(data)
+  scaler = new MiniScaler(data)
   var rows = focus.selectAll('.table-row')
                   .data(data)
                   .enter()
@@ -90,11 +98,36 @@ d3.csv('cancer_survival.csv', dataConverter, function(input_data) {
                        })
                        .text(function(d) { return d.value});
 
-    //focus.selectAll('.table-row')
+      var lineData = [];
+      data.forEach(function(d) {
+        var entries = d3.entries(d);
+        entries.forEach(function(entry) {
+          entry['max'] = getMaxValue(d);
+        })
+        entries.shift();
+        lineData.push(entries);
+      })
 
-
+      rows.append('path')
+          .datum(function(d, i) {
+            return lineData[i]
+          })
+          .attr('class', 'link')
+          .attr('d', line)
+          .attr('stroke', 'blue')
+          .attr('stroke-width', 2)
+          .attr('fill','none');
 
 })
+
+var line = d3.line()
+             .x(function(d) {
+               return xScale(d.key)+10;
+             })
+             .y(function(d) {
+               return scaler.scale(d.max - d.value)-5;
+             })
+             .curve(d3.curveLinear);
 
 function getMaxValue(d) {
   var keys = Object.keys(d);

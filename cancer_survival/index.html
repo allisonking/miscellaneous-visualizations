@@ -3,7 +3,7 @@
 <style>
 .label-background {
   fill: white;
-  fill-opacity: .5;
+  fill-opacity: 1;
 }
 </style>
 
@@ -105,13 +105,31 @@ d3.csv('cancer_survival.csv', dataConverter, function(input_data) {
                   .attr('stroke-width', 2)
                   .attr('fill','none');
 
-  var textLabels = rows.selectAll('.datum')
+  var datums = rows.selectAll('.datum')
                        .data(function(d, i) {
                          return lineData[i]
                        })
                        .enter().append('g')
-                       .attr('class', 'datum')
+                       .attr('class', 'datum');
+
+  var rectBackgrounds = datums.append('rect')
+                              .attr('class', 'label-background')
+                              .attr('y', -15)
+                              .attr('x', -5)
+                              .attr('transform', function(d) {
+                                if (d.key == 'Cancer Type') {
+                                  return 'translate(' + (xScale(d.key) - xScale.bandwidth()/2) + ',0)'
+                                }
+                                var y = d.max - d.value;
+                                return 'translate('+ xScale(d.key)+',' + (scaler.scale(y)) +')';
+                              })
+                              .attr('width', 40)
+                              .attr('height', 20);
+
+  var textLabels = datums
                        .append('text')
+                       .attr('class','datum-text')
+                       //.attr('y', 10)
                        .attr('transform', function(d) {
                          if (d.key == 'Cancer Type') {
                            return 'translate(' + (xScale(d.key) - xScale.bandwidth()/2) + ',0)'
@@ -120,27 +138,6 @@ d3.csv('cancer_survival.csv', dataConverter, function(input_data) {
                          return 'translate('+ xScale(d.key)+',' + (scaler.scale(y)) +')';
                        })
                        .text(function(d) { return d.value});
-
-  var texts = [];
-  textLabels
-      .each(function(d, i) {
-        texts.push(this.getBoundingClientRect());
-      })
-  console.log(texts);
-  var adjust = 12;
-  var bboxPadding = 10;
-
-  svg.selectAll('.label-background')
-      .data(texts)
-      .enter().insert('rect', ':first-child')
-      .attr('x', function(d) { return d.x - adjust; })
-      .attr('y', function(d) { return d.y - adjust; })
-      .attr('width', function(d) { return d.width + bboxPadding; })
-      .attr('height', function(d) { return d.height + bboxPadding; })
-      .attr('rx', 10)
-      .attr('ry', 10)
-      .attr('class', 'label-background')
-      //.attr('transform', fixTransform);
 })
 
 var line = d3.line()
@@ -153,7 +150,7 @@ var line = d3.line()
              .curve(d3.curveLinear);
 
 function getMaxValue(d) {
-  var keys = Object.keys(d);
+  var keys = d3.keys(d);
   // remove the header
   keys.shift();
   var max = -100000000000;
@@ -166,7 +163,7 @@ function getMaxValue(d) {
 }
 
 function getSpread(d) {
-  var keys = Object.keys(d);
+  var keys = d3.keys(d);
   var min = 10000000000;
   var max = -100000000000;
   keys.forEach(function(key) {
@@ -181,7 +178,7 @@ function getSpread(d) {
 }
 
 function getWidestSpread(d) {
-  var keys = Object.keys(d[0]);
+  var keys = d3.keys(d[0]);
   // remove the header
   keys.shift();
   var widestSpread = [0,0];

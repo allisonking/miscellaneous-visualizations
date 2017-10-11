@@ -5,190 +5,30 @@
   fill: white;
   fill-opacity: 1;
 }
+
+body {
+  font-family: Helvetica;
+}
 </style>
-
-<svg width="700" height="700" id="container"></svg>
+<body>
+<h3>Cancer Survival Rates</h3>
+<svg width="700" height="700" id="cancer-container"></svg>
+<h3>Harry Potter Canon Mentions vs. Fan Fiction Tags</h3>
+<svg width="700" height="700" id="hp-container"></svg>
 <script src="https://d3js.org/d3.v4.min.js"></script>
-<!--<script src='js/graph.js'></script>-->
+<script src="slopegraph.js"></script>
 <script>
-var svg = d3.select('#container'),
-    width = +svg.attr("width"),
-    height = +svg.attr("height");
+SlopeGraph( {
+  container: '#cancer-container',
+  data: 'cancer_survival.csv',
+  header: ['Cancer Type', '5 years', '10 years', '15 years', '20 years']
+});
 
-var margin = {top: 15, right: 50, bottom: 0, left: 50};
-
-var xScale = d3.scaleBand().rangeRound([0, width-margin.right]).padding(0.1),
-    scaler;
-
-var focus = svg.append('g')
-               .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')')
-
-var fixTransform = 'translate(' + (-margin.left) + ',' + (-margin.top-30)+')'
-
-// function to convert input data from strings to floats
-var dataConverter = function(d) {
-  return {
-    "Cancer Type": d['cancer_type'],
-    "5 years": +d['5 year'],
-    "10 years": +d['10 year'],
-    "15 years": +d['15 year'],
-    "20 years": +d['20 year']
-  }
-}
-
-function MiniScaler(d) {
-  var maxSpread = getWidestSpread(d);
-  this.maxDomain = maxSpread[1]-maxSpread[0];
-  this.maxRange = height/data.length;
-  this.scale = function (value) {
-    return value / this.maxDomain * this.maxRange;
-  }
-}
-
-var data;
-d3.csv('cancer_survival.csv', dataConverter, function(input_data) {
-  data = input_data;
-
-  // write out the header with xScale
-  var headers = d3.keys(data[0]);
-  xScale.domain(headers);
-  focus.selectAll('.table-header')
-       .data(headers)
-       .enter()
-       .append('text')
-       .attr('text-anchor', 'middle')
-       .attr('class', 'table-header')
-       .attr('x', function(d) { return xScale(d)})
-       .text(function(d) { return d});
-
-  // y value to start with
-  var start = 30;
-  // padding between rows (15 seems to be about text size)
-  var padding = 15;
-  // manual scale for within each row
-  scaler = new MiniScaler(data)
-
-  // transform the data into something more usable
-  var lineData = [];
-  data.forEach(function(d) {
-    var entries = d3.entries(d);
-    entries.forEach(function(entry) {
-      entry['max'] = getMaxValue(d);
-    })
-    //entries.shift();
-    lineData.push(entries);
-  })
-
-  // create a g for each row, transformed down based on max value
-  var rows = focus.selectAll('.table-row')
-                  .data(data)
-                  .enter()
-                  .append('g')
-                  .attr('class', 'table-row')
-                  .attr('transform', function(d) {
-                    var spread = getSpread(d);
-                    var transform = 'translate(0, ' + start + ')';
-                    var y = scaler.scale(spread[1]-spread[0]);
-                    start = start + padding + y;
-                    return transform;
-                  })
-
-  // add the line
-  var lines = rows.append('path')
-                  .datum(function(d, i) {
-                    // cuts out the key- that part won't be in the line
-                    return lineData[i].slice(1,lineData[i].length);
-                  })
-                  .attr('class', 'link')
-                  .attr('d', line)
-                  .attr('stroke', 'blue')
-                  .attr('stroke-width', 2)
-                  .attr('fill','none');
-
-  var datums = rows.selectAll('.datum')
-                       .data(function(d, i) {
-                         return lineData[i]
-                       })
-                       .enter().append('g')
-                       .attr('class', 'datum');
-
-  var rectBackgrounds = datums.append('rect')
-                              .attr('class', 'label-background')
-                              .attr('y', -15)
-                              .attr('x', -5)
-                              .attr('transform', function(d) {
-                                if (d.key == 'Cancer Type') {
-                                  return 'translate(' + (xScale(d.key) - xScale.bandwidth()/2) + ',0)'
-                                }
-                                var y = d.max - d.value;
-                                return 'translate('+ xScale(d.key)+',' + (scaler.scale(y)) +')';
-                              })
-                              .attr('width', 40)
-                              .attr('height', 20);
-
-  var textLabels = datums
-                       .append('text')
-                       .attr('class','datum-text')
-                       //.attr('y', 10)
-                       .attr('transform', function(d) {
-                         if (d.key == 'Cancer Type') {
-                           return 'translate(' + (xScale(d.key) - xScale.bandwidth()/2) + ',0)'
-                         }
-                         var y = d.max - d.value;
-                         return 'translate('+ xScale(d.key)+',' + (scaler.scale(y)) +')';
-                       })
-                       .text(function(d) { return d.value});
-})
-
-var line = d3.line()
-             .x(function(d) {
-               return xScale(d.key)+10;
-             })
-             .y(function(d) {
-               return scaler.scale(d.max - d.value)-5;
-             })
-             .curve(d3.curveLinear);
-
-function getMaxValue(d) {
-  var keys = d3.keys(d);
-  // remove the header
-  keys.shift();
-  var max = -100000000000;
-  keys.forEach(function(key) {
-    if (d[key] > max) {
-      max = d[key];
-    }
-  })
-  return max;
-}
-
-function getSpread(d) {
-  var keys = d3.keys(d);
-  var min = 10000000000;
-  var max = -100000000000;
-  keys.forEach(function(key) {
-    if (d[key] > max) {
-      max = d[key];
-    }
-    if (d[key] < min) {
-      min = d[key];
-    }
-  })
-  return [min, max];
-}
-
-function getWidestSpread(d) {
-  var keys = d3.keys(d[0]);
-  // remove the header
-  keys.shift();
-  var widestSpread = [0,0];
-  d.forEach(function(item) {
-    var itemSpread = getSpread(item);
-    if (itemSpread[1] - itemSpread[0] > (widestSpread[1] - widestSpread[0])) {
-      widestSpread = itemSpread;
-    }
-  })
-  return widestSpread;
-}
+SlopeGraph( {
+  container: '#hp-container',
+  data: 'hp_canon_ff.csv',
+  header: ['Character', 'Canon Percentage', 'Fan Fiction Percentage']
+});
 
 </script>
+</body>

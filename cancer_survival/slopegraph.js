@@ -3,7 +3,7 @@ function SlopeGraph(options) {
       width = +svg.attr("width"),
       height = +svg.attr("height");
 
-  var margin = {top: 15, right: 50, bottom: 0, left: 50};
+  var margin = {top: 15, right: 50, bottom: 0, left: 100};
 
   var xScale = d3.scaleBand().rangeRound([0, width-margin.right]).padding(0.1),
       miniScaler = d3.scaleLinear();
@@ -17,13 +17,12 @@ function SlopeGraph(options) {
     var row = {};
     options.header.forEach(function(label, i) {
       if (i!=0) {
-        // round decimals
+        // round decimals. this will leave one decimal place. change here if more are needed
         row[label]= Math.round(+d[dataKeys[i]] * 10) / 10;
       } else {
         row[label] = d[dataKeys[i]];
       }
     })
-
     return row;
   }
 
@@ -46,7 +45,8 @@ function SlopeGraph(options) {
     // y value to start with
     var startHeight = 30;
     // padding between rows (15 seems to be about text size)
-    var padding = 15;
+    var textSize = 15;
+    var padding = 5;
     // mini scale for within each row
     miniScaler.range([0,height/data.length]);
     miniScaler.domain([0,getMaxSpread(data)])
@@ -71,7 +71,7 @@ function SlopeGraph(options) {
                     .attr('transform', function(d) {
                       var spread = getSpread(d);
                       var transform = 'translate(0, ' + startHeight + ')';
-                      startHeight = startHeight + padding + miniScaler(spread);
+                      startHeight = startHeight + textSize + miniScaler(spread);
                       return transform;
                     })
 
@@ -96,19 +96,20 @@ function SlopeGraph(options) {
                          .attr('class', 'datum');
 
     // add the background rect
+    var rectWidth = 40; // seems like a good amount for 3 numbers (e.g. 12.3)
     var rectBackgrounds = datums.append('rect')
                                 .attr('class', 'label-background')
-                                .attr('y', -15)
-                                .attr('x', -5)
+                                .attr('y', -textSize)
+                                .attr('x', -rectWidth/2)
                                 .attr('transform', transformDatum)
-                                .attr('width', 40)
-                                .attr('height', 20);
+                                .attr('width', rectWidth)
+                                .attr('height', textSize + padding);
 
     // add the text
     var textLabels = datums
                          .append('text')
                          .attr('class','datum-text')
-                         //.attr('y', 10)
+                         .attr('text-anchor', 'middle')
                          .attr('transform', transformDatum)
                          .text(function(d) { return d.value});
 
@@ -117,8 +118,7 @@ function SlopeGraph(options) {
   // function to find where to transform each datum/rect to
   function transformDatum(d) {
     if (d.key == options.header[0]) {
-      return 'translate(' + (xScale(d.key) - xScale.bandwidth()/3) + ',' +
-                             miniScaler(d.max - d.first)+')'
+      return 'translate(' + xScale(d.key) +',' + miniScaler(d.max - d.first)+')'
     }
     var y = d.max - d.value;
     return 'translate('+ xScale(d.key)+',' + (miniScaler(y)) +')';
@@ -134,11 +134,12 @@ function SlopeGraph(options) {
                })
                .curve(d3.curveLinear);
 
-  // helper functions to calculate max's and differences
+  // below are helper functions to calculate max's and differences
 
   function getFirstColumnValue(d) {
     return d[options.header[1]];
   }
+
   function getMaxValue(d) {
     var keys = d3.keys(d);
     // remove the header

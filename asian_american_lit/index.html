@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<head>
+  <script src="https://d3js.org/d3.v4.min.js"></script>
+  <script src="https://code.jquery.com/jquery-3.2.1.min.js"
+  integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
+  crossorigin="anonymous"></script>
+</head>
+<style>
+.label-background {
+  fill: white;
+  fill-opacity: 1;
+}
+
+body {
+  font-family: Helvetica;
+}
+
+</style>
+
+<body>
+<h3>Asian American Literature</h3>
+<svg width="700" height="700" id="container"></svg>
+<script>
+var svg = d3.select('#container'),
+    width = +svg.attr("width"),
+    height = +svg.attr("height");
+
+var margin = {top: 15, right: 50, bottom: 0, left: 100};
+
+var focus = svg.append('g')
+               .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')')
+
+var authors = [];
+
+function nytAPICall(name, api_key) {
+  var url = 'https://api.nytimes.com/svc/books/v3/reviews.json';
+  url += '?' + $.param({
+    'api-key': api_key,
+    'author': name
+  });
+  console.log(url);
+  $.ajax({
+    url: url,
+    method: 'GET',
+  }).done(function(result) {
+    return result;
+  }).fail(function(err) {
+    throw err;
+  });
+}
+
+d3.text('authors_5.txt', function(data) {
+  var names = data.split('\n');
+  d3.json('api_key.json', function(key){
+    var nyt_api = key['nyt'];
+    names.splice(-1);
+    names.forEach(function(name){
+      console.log(name);
+      var result = nytAPICall(name, nyt_api);
+      var author = {'name': name, 'nyt_reviews': result.results};
+      authors.push(author);
+    });
+    console.log(authors);
+
+  });
+
+})
+
+
+</script>
+</body>

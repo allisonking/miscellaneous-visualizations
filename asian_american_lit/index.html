@@ -2,14 +2,28 @@
 <meta charset="utf-8">
 <head>
   <script src="https://d3js.org/d3.v4.min.js"></script>
+  <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
+  <script src="d3-tip.js"></script>
   <script src="https://code.jquery.com/jquery-3.2.1.min.js"
   integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
   crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="d3-tip.css">
+
 </head>
 <style>
+
 .label-background {
   fill: white;
-  fill-opacity: 1;
+  fill-opacity: .5;
+}
+
+.axis {
+  font-family: Helvetica, sans-serif;
+  font-size: 14px;
+}
+
+.book-title {
+  font-weight: bold;
 }
 
 body {
@@ -20,18 +34,135 @@ body {
 
 <body>
 <h3>Asian American Literature</h3>
-<svg width="700" height="700" id="container"></svg>
+<svg width="800" height="500" id="container"></svg>
 <script>
+var tip = d3.tip().attr('class', 'd3-tip').html(function(d) {
+  return d.book_title + " (" + toTitleCase(d.byline)+")";
+});
+
+// from https://stackoverflow.com/questions/4878756/how-to-capitalize-first-letter-of-each-word-like-a-2-word-city
+function toTitleCase(str) {
+  return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
+}
+
 var svg = d3.select('#container'),
     width = +svg.attr("width"),
     height = +svg.attr("height");
 
-var margin = {top: 15, right: 50, bottom: 0, left: 100};
+svg.call(tip);
+
+var margin = {top: 15, right: 50, bottom: 100, left: 50};
+var xAxisSpace = 60,
+    xAxisPadding = 20,
+    circleRadius = 12;
+width = width - margin.right;
+height = height - margin.bottom;
 
 var focus = svg.append('g')
-               .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')')
+               .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
 
-var authors = [];
+// set the ranges for the scales
+var xScale = d3.scaleBand().rangeRound([0, width]).padding(0.1),
+    yScale = d3.scaleLinear().range([height - xAxisSpace - xAxisPadding, 0]);
+
+d3.json('author_data.json', function(data) {
+  // set the domains
+  xScale.domain(data.map(function(d) { return d.name; }));
+  yScale.domain([0, d3.max(data.map(function(d) { return d.nyt.length }))]);
+
+  drawXAxis();
+  drawArticlePoints(data);
+
+});
+
+function drawArticlePoints(data) {
+  var authorCount = 0;
+  var lastAuthor = data[0].name;
+  var articles = focus.append('g')
+                      .attr('class', 'articles');
+
+  var authorColumn = articles.selectAll('.author-column')
+                             .data(data)
+                             .enter().append('g')
+                             .attr('class', 'author-column')
+                             .attr('transform', function(d) {
+                               return 'translate(' + (xScale(d.name) + xScale.bandwidth()/2) + ',0)';
+                             });
+
+  authorColumn.selectAll('circle')
+          .data(function(d) { return d.nyt; })
+          .enter().append('circle')
+          .attr('cy', function(d, i) { return yScale(i); })
+          .attr('r', circleRadius)
+          .attr('fill', function(d, i) {
+            if (d['book_author'] != lastAuthor) {
+              authorCount += 1;
+              lastAuthor = d['book_author'];
+            }
+            return d3.interpolateSpectral(authorCount/data.length);
+          })
+          .on('mouseover', handleMouseOver)
+          .on('mouseout', handleMouseOut);
+}
+
+function handleMouseOver(d, i) {
+  var textHeight = 15;
+  d3.select(this).attr('r', circleRadius * 1.5);
+
+  var group = focus.append('g')
+                   .attr('id', 'hover-box');
+
+  var x = xScale(d.book_author) + xScale.bandwidth()/2;
+  var y = yScale(i);
+
+  group.append('text')
+       .attr('x', x)
+       .attr('y', y - circleRadius*1.5 - textHeight)
+       .attr('text-anchor','middle')
+       .attr('class', 'book-title')
+       .text(d.book_title);
+
+  group.append('text')
+       .attr('x', x)
+       .attr('y', y - circleRadius*1.5)
+       .attr('text-anchor','middle')
+       .attr('font-size', '10px')
+       .text(d.byline);
+
+  // get the bbox so we can place a background that makes text easier to see
+  var bbox = group.node().getBBox();
+  var bboxPadding = 5;
+
+  // place the background
+  var rect = group.insert('rect', ':first-child')
+                  .attr('x', bbox.x - bboxPadding/2)
+                  .attr('y', bbox.y - bboxPadding/2)
+                  .attr('width', bbox.width + bboxPadding)
+                  .attr('height', bbox.height + bboxPadding)
+                  .attr('rx', 10)
+                  .attr('ry', 10)
+                  .attr('class', 'label-background');
+}
+
+function handleMouseOut(d) {
+  d3.select(this).attr('r', circleRadius);
+  d3.select('#hover-box').remove();
+}
+
+function drawXAxis() {
+  focus.append('g')
+       .attr('class', 'axis axis--x')
+       .attr('transform', 'translate(0,' + (height - xAxisSpace) +')')
+
+  focus.select('.axis--x').call(d3.axisBottom(xScale))
+
+  focus.selectAll('.axis--x')
+       .selectAll('text')
+       .style('text-anchor', 'end')
+       .attr('dx', '-.8em')
+       .attr('dy', '.15em')
+       .attr('transform', 'rotate(-65)');
+}
 
 function nytAPICall(name, api_key) {
   var url = 'https://api.nytimes.com/svc/books/v3/reviews.json';
@@ -39,7 +170,6 @@ function nytAPICall(name, api_key) {
     'api-key': api_key,
     'author': name
   });
-  console.log(url);
   $.ajax({
     url: url,
     method: 'GET',
@@ -49,23 +179,6 @@ function nytAPICall(name, api_key) {
     throw err;
   });
 }
-
-d3.text('authors_5.txt', function(data) {
-  var names = data.split('\n');
-  d3.json('api_key.json', function(key){
-    var nyt_api = key['nyt'];
-    names.splice(-1);
-    names.forEach(function(name){
-      console.log(name);
-      var result = nytAPICall(name, nyt_api);
-      var author = {'name': name, 'nyt_reviews': result.results};
-      authors.push(author);
-    });
-    console.log(authors);
-
-  });
-
-})
 
 
 </script>

@@ -34,29 +34,23 @@ body {
 
 <body>
 <h3>Asian American Literature</h3>
-<svg width="800" height="500" id="container"></svg>
+<form >
+  <input type='radio' name='reviews' value='author' checked> By Author <br>
+  <input type='radio' name='reviews' value='date'> By Date <br><br>
+</form>
+<svg width="1000" height="500" id="container"></svg>
 <script>
-var tip = d3.tip().attr('class', 'd3-tip').html(function(d) {
-  return d.book_title + " (" + toTitleCase(d.byline)+")";
-});
-
-// from https://stackoverflow.com/questions/4878756/how-to-capitalize-first-letter-of-each-word-like-a-2-word-city
-function toTitleCase(str) {
-  return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
-}
 
 var svg = d3.select('#container'),
-    width = +svg.attr("width"),
-    height = +svg.attr("height");
+    w = +svg.attr("width"),
+    h = +svg.attr("height");
 
-svg.call(tip);
-
-var margin = {top: 15, right: 50, bottom: 100, left: 50};
+var margin = {top: 15, right: 200, bottom: 100, left: 100};
 var xAxisSpace = 60,
     xAxisPadding = 20,
-    circleRadius = 12;
-width = width - margin.right;
-height = height - margin.bottom;
+    circleRadius = 12,
+    width = w - margin.right,
+    height = h - margin.bottom;
 
 var focus = svg.append('g')
                .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
@@ -65,7 +59,30 @@ var focus = svg.append('g')
 var xScale = d3.scaleBand().rangeRound([0, width]).padding(0.1),
     yScale = d3.scaleLinear().range([height - xAxisSpace - xAxisPadding, 0]);
 
+// listen for radio button change
+d3.selectAll("input[name=reviews]").on("change", reviewsSortChanged)
+
+var parseTime = d3.timeParse("%Y-%m-%d")
+
+function reviewsSortChanged() {
+  xScale = d3.scaleTime().range([0,width]);
+  xScale.domain(findPublicationExtent(all_data));
+
+  console.log(xScale.domain());
+}
+
+function findPublicationExtent(data) {
+  var dates = [];
+  data.forEach(function(datum) {
+    var miniExtent = d3.extent(datum.nyt, function(d) { return parseTime(d.publication_dt)});
+    dates = dates.concat(miniExtent);
+  })
+  return d3.extent(dates, function(d) { return d; });
+}
+
+var all_data;
 d3.json('author_data.json', function(data) {
+  all_data = data;
   // set the domains
   xScale.domain(data.map(function(d) { return d.name; }));
   yScale.domain([0, d3.max(data.map(function(d) { return d.nyt.length }))]);
@@ -91,7 +108,11 @@ function drawArticlePoints(data) {
 
   authorColumn.selectAll('circle')
           .data(function(d) { return d.nyt; })
-          .enter().append('circle')
+          .enter()
+          .append('a')
+          .attr('xlink:target', '_blank')
+          .attr('xlink:href', function(d) { return d.url})
+          .append('circle')
           .attr('cy', function(d, i) { return yScale(i); })
           .attr('r', circleRadius)
           .attr('fill', function(d, i) {
@@ -162,6 +183,14 @@ function drawXAxis() {
        .attr('dx', '-.8em')
        .attr('dy', '.15em')
        .attr('transform', 'rotate(-65)');
+}
+
+function updateXAxis(type) {
+  if (type == 'date') {
+
+  } else {
+
+  }
 }
 
 function nytAPICall(name, api_key) {

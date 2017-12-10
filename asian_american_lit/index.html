@@ -85,7 +85,8 @@ var graphType;
 var flattenedData;
 d3.json('author_data.json', function(data) {
   all_data = data;
-  flattenedData = flattenData(data);
+  var rawFlattened = flattenData(data);
+  flattenedData = removeDuplicates(rawFlattened);
   graphType = d3.select('input[name="reviews"]:checked').node().value;
   // set the domain
   yScale.domain([0, d3.max(data.map(function(d) { return d.nyt.length }))]);
@@ -101,6 +102,30 @@ d3.json('author_data.json', function(data) {
   drawDataPoints(graphType);
 
 });
+
+function removeDuplicates(data) {
+  var dict = {};
+  var noDuplicates = [];
+  // duplicates seem to occur when both http and https are available as URLs
+  for (var i = 0; i < data.length; i++) {
+    var urlSansProtocol = data[i].url.substring(data[i].url.indexOf("://") + 1);
+    if (dict[urlSansProtocol] == undefined) {
+      dict[urlSansProtocol] = data[i];
+    } else {
+      // prioritize https
+      if (data[i].url.indexOf("https://") != -1) {
+        var storedReview = dict[urlSansProtocol];
+        dict[urlSansProtocol] = data[i];
+        // have to keep review number consistent
+        dict[urlSansProtocol]['review_num'] = storedReview['review_num'];
+      }
+    }
+  }
+  for (var key in dict) {
+    noDuplicates.push(dict[key]);
+  }
+  return noDuplicates;
+}
 
 function drawDataPoints(type) {
   if (type == 'author') {
@@ -208,6 +233,7 @@ function handleMouseOut(d) {
 
 function flattenData(data) {
   var flattenedArray = [];
+  var dict = {};
   data.forEach(function(datum, authorNum) {
     datum.nyt.forEach(function(d, reviewNum) {
       d['author_num'] = authorNum;

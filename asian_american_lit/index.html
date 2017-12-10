@@ -233,7 +233,6 @@ function handleMouseOut(d) {
 
 function flattenData(data) {
   var flattenedArray = [];
-  var dict = {};
   data.forEach(function(datum, authorNum) {
     datum.nyt.forEach(function(d, reviewNum) {
       d['author_num'] = authorNum;

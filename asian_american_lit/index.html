@@ -3,12 +3,9 @@
 <head>
   <script src="https://d3js.org/d3.v4.min.js"></script>
   <script src="https://d3js.org/d3-scale-chromatic.v1.min.js"></script>
-  <script src="d3-tip.js"></script>
   <script src="https://code.jquery.com/jquery-3.2.1.min.js"
   integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
   crossorigin="anonymous"></script>
-  <link rel="stylesheet" href="d3-tip.css">
-
 </head>
 <style>
 
@@ -45,7 +42,7 @@ var svg = d3.select('#container'),
     w = +svg.attr("width"),
     h = +svg.attr("height");
 
-var margin = {top: 50, right: 200, bottom: 100, left: 100};
+var margin = {top: 50, right: 200, bottom: 150, left: 100};
 var xAxisSpace = 60,
     xAxisPadding = 20,
     circleRadius = 12,
@@ -93,8 +90,10 @@ function findPublicationExtent(data) {
 
 var all_data;
 var graphType;
+var flattenedData;
 d3.json('author_data.json', function(data) {
   all_data = data;
+  flattenedData = flattenData(data);
   graphType = d3.select('input[name="reviews"]:checked').node().value;
   // set the domain
   yScale.domain([0, d3.max(data.map(function(d) { return d.nyt.length }))]);
@@ -104,45 +103,48 @@ d3.json('author_data.json', function(data) {
        .attr('class', 'axis axis--x')
        .attr('transform', 'translate(0,' + (height - xAxisSpace) +')')
 
-
-
   bindXScale(graphType);
   drawDataPoints(graphType);
 
 });
 
 function drawDataPoints(type) {
+  drawPoints(flattenedData);
   if (type == 'author') {
-    drawArticlePoints(all_data);
+    drawAuthorPoints(flattenedData);
   } else {
-    drawDatePoints(all_data);
+    drawDatePoints(flattenedData);
   }
 }
 
 function drawDatePoints(data) {
-  var flattenedArray = [];
-  data.forEach(function(datum) {
-    flattenedArray = flattenedArray.concat(datum.nyt);
-  })
-
-  focus.selectAll('.author-column')
-          .attr('transform', 'translate(0,0)');
-
-  var points = focus.selectAll('.data-point')
-                    .data(flattenedArray, function(d) { return d.publication_dt; })
-                    .transition()
-                    .delay(function(d, i) {
-                      return i * .5;
-                    })
-                    .duration(1000)
-                    .attr('cx', function(d) { return xScale(parseTime(d.publication_dt)); })
-
+  focus.selectAll('.data-point')
+       .data(data, function(d) { return d.publication_dt; })
+       .transition()
+       .delay(function(d, i) {
+         return i * .5;
+       })
+       .duration(1000)
+       .attr('cx', function(d) { return xScale(parseTime(d.publication_dt)); })
 }
 
-function drawArticlePoints(data) {
-  var authorCount = 0;
-  var reviewCount = 0;
-  var lastAuthor = data[0].name;
+function drawAuthorPoints(data) {
+  console.log(data);
+  focus.selectAll('.data-point')
+       .data(data)
+       .transition()
+       .delay(function(d, i) {
+         return i * .5;
+       })
+       .duration(1000)
+       .attr('cx', function(d) { return (xScale(d['book_author']) + xScale.bandwidth()/2); })
+       .attr('cy', function(d) {
+         // offset for indexing by zero-- none of these are 'zero' reviews
+         return yScale(d['review_num'] + 1);
+       })
+}
+
+function flattenData(data) {
   var flattenedArray = [];
   data.forEach(function(datum, authorNum) {
     datum.nyt.forEach(function(d, reviewNum) {
@@ -151,12 +153,15 @@ function drawArticlePoints(data) {
       flattenedArray.push(d);
     });
   });
+  return flattenedArray;
+}
 
+function drawPoints(data) {
   var articles = focus.append('g')
                       .attr('class', 'articles');
 
   focus.selectAll('circle')
-          .data(flattenedArray, function(d) { return d; })
+          .data(data, function(d) { return d; })
           .enter()
           .append('a')
           .attr('xlink:target', '_blank')
@@ -164,13 +169,13 @@ function drawArticlePoints(data) {
           .append('circle')
           .attr('class', 'data-point')
           .attr('fill', function(d) {
-            return d3.interpolateSpectral(d['author_num']/data.length);
+            return d3.interpolateSpectral(d['author_num']/all_data.length);
           })
-          .attr('cx', function(d) { return (xScale(d['book_author']) + xScale.bandwidth()/2); })
-          .attr('cy', function(d) {
-            // offset for indexing by zero-- none of these are 'zero' reviews
-            return yScale(d['review_num'] + 1);
-          })
+          // .attr('cx', function(d) { return (xScale(d['book_author']) + xScale.bandwidth()/2); })
+          // .attr('cy', function(d) {
+          //   // offset for indexing by zero-- none of these are 'zero' reviews
+          //   return yScale(d['review_num'] + 1);
+          // })
           .attr('r', circleRadius)
           .on('mouseover', handleMouseOver)
           .on('mouseout', handleMouseOut);
@@ -229,7 +234,6 @@ function handleMouseOut(d) {
 }
 
 function updateXAxis(type) {
-
 
   focus.select('.axis--x').call(d3.axisBottom(xScale))
 

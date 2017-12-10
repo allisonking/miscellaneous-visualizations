@@ -38,8 +38,6 @@ body {
 <svg width="1000" height="500" id="container"></svg>
 <script>
 
-//TODO: remove duplicates
-
 var svg = d3.select('#container'),
     w = +svg.attr("width"),
     h = +svg.attr("height");
@@ -76,19 +74,10 @@ function bindXScale(type) {
     xScale.domain(all_data.map(function(d) { return d.name; }))
   } else {
     xScale = d3.scaleTime().range([0,width]);
-    xScale.domain(findPublicationExtent(all_data));
+    xScale.domain(d3.extent(flattenedData, function(d) { return parseTime(d.publication_dt); }))
   }
 
   updateXAxis();
-}
-
-function findPublicationExtent(data) {
-  var dates = [];
-  data.forEach(function(datum) {
-    var miniExtent = d3.extent(datum.nyt, function(d) { return parseTime(d.publication_dt)});
-    dates = dates.concat(miniExtent);
-  })
-  return d3.extent(dates, function(d) { return d; });
 }
 
 var all_data;

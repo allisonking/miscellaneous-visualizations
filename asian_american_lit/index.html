@@ -38,6 +38,8 @@ body {
 <svg width="1000" height="500" id="container"></svg>
 <script>
 
+//TODO: remove duplicates
+
 var svg = d3.select('#container'),
     w = +svg.attr("width"),
     h = +svg.attr("height");
@@ -52,9 +54,10 @@ var xAxisSpace = 60,
 var focus = svg.append('g')
                .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
 
-// set the ranges for the scales
+// set the ranges for the scales. xScale will be dynamically done
 var xScale,
-    yScale = d3.scaleLinear().range([height - xAxisSpace, 0]);
+    yScale = d3.scaleLinear().range([height - xAxisSpace, 0]),
+    colorScale = d3.scaleLinear().range([0,1]);
 
 // listen for radio button change
 d3.selectAll("input[name=reviews]").on("change", updateOnChange)
@@ -97,6 +100,7 @@ d3.json('author_data.json', function(data) {
   graphType = d3.select('input[name="reviews"]:checked').node().value;
   // set the domain
   yScale.domain([0, d3.max(data.map(function(d) { return d.nyt.length }))]);
+  colorScale.domain([0, data.length])
 
   // append the x axis class
   focus.append('g')
@@ -104,12 +108,12 @@ d3.json('author_data.json', function(data) {
        .attr('transform', 'translate(0,' + (height - xAxisSpace) +')')
 
   bindXScale(graphType);
+  drawPoints(flattenedData);
   drawDataPoints(graphType);
 
 });
 
 function drawDataPoints(type) {
-  drawPoints(flattenedData);
   if (type == 'author') {
     drawAuthorPoints(flattenedData);
   } else {
@@ -119,41 +123,28 @@ function drawDataPoints(type) {
 
 function drawDatePoints(data) {
   focus.selectAll('.data-point')
-       .data(data, function(d) { return d.publication_dt; })
+       .data(data)
        .transition()
-       .delay(function(d, i) {
-         return i * .5;
-       })
+      //  .delay(function(d, i) {
+      //    return i * 50;
+      //  })
        .duration(1000)
        .attr('cx', function(d) { return xScale(parseTime(d.publication_dt)); })
 }
 
 function drawAuthorPoints(data) {
-  console.log(data);
   focus.selectAll('.data-point')
        .data(data)
        .transition()
-       .delay(function(d, i) {
-         return i * .5;
-       })
+      //  .delay(function(d, i) {
+      //    return i * .5;
+      //  })
        .duration(1000)
        .attr('cx', function(d) { return (xScale(d['book_author']) + xScale.bandwidth()/2); })
        .attr('cy', function(d) {
          // offset for indexing by zero-- none of these are 'zero' reviews
          return yScale(d['review_num'] + 1);
        })
-}
-
-function flattenData(data) {
-  var flattenedArray = [];
-  data.forEach(function(datum, authorNum) {
-    datum.nyt.forEach(function(d, reviewNum) {
-      d['author_num'] = authorNum;
-      d['review_num'] = reviewNum;
-      flattenedArray.push(d);
-    });
-  });
-  return flattenedArray;
 }
 
 function drawPoints(data) {
@@ -169,13 +160,8 @@ function drawPoints(data) {
           .append('circle')
           .attr('class', 'data-point')
           .attr('fill', function(d) {
-            return d3.interpolateSpectral(d['author_num']/all_data.length);
+            return d3.interpolateSpectral(colorScale(d['author_num']));
           })
-          // .attr('cx', function(d) { return (xScale(d['book_author']) + xScale.bandwidth()/2); })
-          // .attr('cy', function(d) {
-          //   // offset for indexing by zero-- none of these are 'zero' reviews
-          //   return yScale(d['review_num'] + 1);
-          // })
           .attr('r', circleRadius)
           .on('mouseover', handleMouseOver)
           .on('mouseout', handleMouseOut);
@@ -184,20 +170,18 @@ function drawPoints(data) {
 function handleMouseOver(d, i) {
   var textHeight = 15;
   d3.select(this).attr('r', circleRadius * 1.5);
+  var x = d3.select(this).attr('cx');
+  var y = d3.select(this).attr('cy');
 
   var group = focus.append('g')
                    .attr('id', 'hover-box');
 
-  var x;
   var text;
   if (graphType == 'author') {
-    x = xScale(d.book_author) + xScale.bandwidth()/2;
     text = "Review by: " + d.byline;
   } else {
-    x = xScale(parseTime(d.publication_dt));
     text = "Author: " + d.book_author.toUpperCase();
   }
-  var y = yScale(d['review_num'] + 1);
 
   group.append('text')
        .attr('x', x)
@@ -231,6 +215,18 @@ function handleMouseOver(d, i) {
 function handleMouseOut(d) {
   d3.select(this).attr('r', circleRadius);
   d3.select('#hover-box').remove();
+}
+
+function flattenData(data) {
+  var flattenedArray = [];
+  data.forEach(function(datum, authorNum) {
+    datum.nyt.forEach(function(d, reviewNum) {
+      d['author_num'] = authorNum;
+      d['review_num'] = reviewNum;
+      flattenedArray.push(d);
+    });
+  });
+  return flattenedArray;
 }
 
 function updateXAxis(type) {

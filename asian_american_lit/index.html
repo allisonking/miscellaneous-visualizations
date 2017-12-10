@@ -35,8 +35,19 @@ body {
   <input type='radio' name='reviews' value='author' checked> By Author <br>
   <input type='radio' name='reviews' value='date'> By Date <br><br>
 </form>
+<form name="myform" onSubmit="return handleSubmission()">
+  <input type="text" id="inputName" placeholder="Add an author's name (first and last)">
+  <input name="Submit"  type="submit" value="Add Author" >
+</form>
+
 <svg width="1000" height="500" id="container"></svg>
 <script>
+
+// get the API key
+var nyt_api;
+d3.json("api_key.json", function(data) {
+  nyt_api = data.nyt;
+})
 
 var svg = d3.select('#container'),
     w = +svg.attr("width"),
@@ -65,7 +76,7 @@ var parseTime = d3.timeParse("%Y-%m-%d")
 function updateOnChange() {
   graphType = this.value;
   bindXScale(graphType);
-  drawDataPoints(graphType);
+  drawDataPoints(graphType, flattenedData);
 }
 
 function bindXScale(type) {
@@ -99,39 +110,15 @@ d3.json('author_data.json', function(data) {
 
   bindXScale(graphType);
   drawPoints(flattenedData);
-  drawDataPoints(graphType);
+  drawDataPoints(graphType, flattenedData);
 
 });
 
-function removeDuplicates(data) {
-  var dict = {};
-  var noDuplicates = [];
-  // duplicates seem to occur when both http and https are available as URLs
-  for (var i = 0; i < data.length; i++) {
-    var urlSansProtocol = data[i].url.substring(data[i].url.indexOf("://") + 1);
-    if (dict[urlSansProtocol] == undefined) {
-      dict[urlSansProtocol] = data[i];
-    } else {
-      // prioritize https
-      if (data[i].url.indexOf("https://") != -1) {
-        var storedReview = dict[urlSansProtocol];
-        dict[urlSansProtocol] = data[i];
-        // have to keep review number consistent
-        dict[urlSansProtocol]['review_num'] = storedReview['review_num'];
-      }
-    }
-  }
-  for (var key in dict) {
-    noDuplicates.push(dict[key]);
-  }
-  return noDuplicates;
-}
-
-function drawDataPoints(type) {
+function drawDataPoints(type, data) {
   if (type == 'author') {
-    drawAuthorPoints(flattenedData);
+    drawAuthorPoints(data);
   } else {
-    drawDatePoints(flattenedData);
+    drawDatePoints(data);
   }
 }
 
@@ -139,9 +126,6 @@ function drawDatePoints(data) {
   focus.selectAll('.data-point')
        .data(data)
        .transition()
-      //  .delay(function(d, i) {
-      //    return i * 50;
-      //  })
        .duration(1000)
        .attr('cx', function(d) { return xScale(parseTime(d.publication_dt)); })
 }
@@ -150,9 +134,6 @@ function drawAuthorPoints(data) {
   focus.selectAll('.data-point')
        .data(data)
        .transition()
-      //  .delay(function(d, i) {
-      //    return i * .5;
-      //  })
        .duration(1000)
        .attr('cx', function(d) { return (xScale(d['book_author']) + xScale.bandwidth()/2); })
        .attr('cy', function(d) {
@@ -231,6 +212,12 @@ function handleMouseOut(d) {
   d3.select('#hover-box').remove();
 }
 
+function handleSubmission(d) {
+  var submittedName = d3.select('#inputName').node().value;
+  nytAPICall(submittedName, nyt_api);
+  return false;
+}
+
 function flattenData(data) {
   var flattenedArray = [];
   data.forEach(function(datum, authorNum) {
@@ -243,9 +230,32 @@ function flattenData(data) {
   return flattenedArray;
 }
 
-function updateXAxis(type) {
+function removeDuplicates(data) {
+  var dict = {};
+  var noDuplicates = [];
+  // duplicates seem to occur when both http and https are available as URLs
+  for (var i = 0; i < data.length; i++) {
+    var urlSansProtocol = data[i].url.substring(data[i].url.indexOf("://") + 1);
+    if (dict[urlSansProtocol] == undefined) {
+      dict[urlSansProtocol] = data[i];
+    } else {
+      // prioritize https
+      if (data[i].url.indexOf("https://") != -1) {
+        var storedReview = dict[urlSansProtocol];
+        dict[urlSansProtocol] = data[i];
+        // have to keep review number consistent
+        dict[urlSansProtocol]['review_num'] = storedReview['review_num'];
+      }
+    }
+  }
+  for (var key in dict) {
+    noDuplicates.push(dict[key]);
+  }
+  return noDuplicates;
+}
 
-  focus.select('.axis--x').call(d3.axisBottom(xScale))
+function updateXAxis(type) {
+  focus.select('.axis--x').call(d3.axisBottom(xScale));
 
   focus.selectAll('.axis--x')
        .selectAll('text')
@@ -265,10 +275,30 @@ function nytAPICall(name, api_key) {
     url: url,
     method: 'GET',
   }).done(function(result) {
+    var newEntry = {'name': toTitleCase(name), 'nyt': result.results};
+    all_data.push(newEntry);
+    all_data = alphabetize(all_data);
+    var flattenResult = removeDuplicates(flattenData(all_data));
     return result;
   }).fail(function(err) {
     throw err;
   });
+}
+
+function alphabetize(data) {
+  data.sort(function(a, b) {
+    var splitA = a.name.split(" ");
+    var splitB = b.name.split(" ");
+    if(splitA[splitA.length-1] < splitB[splitB.length-1]) return -1;
+    if(splitA[splitA.length-1] > splitB[splitB.length-1]) return 1;
+    return 0;
+  })
+  return data;
+}
+
+function toTitleCase(str)
+{
+    return str.replace(/\w\S*/g, function(txt){return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();});
 }
 
 

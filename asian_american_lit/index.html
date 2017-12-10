@@ -56,19 +56,29 @@ var focus = svg.append('g')
                .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
 
 // set the ranges for the scales
-var xScale = d3.scaleBand().rangeRound([0, width]).padding(0.1),
+var xScale,
     yScale = d3.scaleLinear().range([height - xAxisSpace - xAxisPadding, 0]);
 
 // listen for radio button change
-d3.selectAll("input[name=reviews]").on("change", reviewsSortChanged)
+d3.selectAll("input[name=reviews]").on("change", updateOnChange)
 
 var parseTime = d3.timeParse("%Y-%m-%d")
 
-function reviewsSortChanged() {
-  xScale = d3.scaleTime().range([0,width]);
-  xScale.domain(findPublicationExtent(all_data));
+function updateOnChange() {
+  bindXScale(this.value);
+  drawDataPoints(this.value);
+}
 
-  console.log(xScale.domain());
+function bindXScale(type) {
+  if (type == 'author') {
+    xScale = d3.scaleBand().rangeRound([0, width]).padding(0.1);
+    xScale.domain(all_data.map(function(d) { return d.name; }))
+  } else {
+    xScale = d3.scaleTime().range([0,width]);
+    xScale.domain(findPublicationExtent(all_data));
+  }
+
+  updateXAxis();
 }
 
 function findPublicationExtent(data) {
@@ -77,20 +87,55 @@ function findPublicationExtent(data) {
     var miniExtent = d3.extent(datum.nyt, function(d) { return parseTime(d.publication_dt)});
     dates = dates.concat(miniExtent);
   })
+  console.log(dates);
   return d3.extent(dates, function(d) { return d; });
 }
 
 var all_data;
 d3.json('author_data.json', function(data) {
   all_data = data;
-  // set the domains
-  xScale.domain(data.map(function(d) { return d.name; }));
+  // set the domain
   yScale.domain([0, d3.max(data.map(function(d) { return d.nyt.length }))]);
 
-  drawXAxis();
-  drawArticlePoints(data);
+  // append the x axis class
+  focus.append('g')
+       .attr('class', 'axis axis--x')
+       .attr('transform', 'translate(0,' + (height - xAxisSpace) +')')
+
+  var type = d3.select('input[name="reviews"]:checked').node().value;
+
+  bindXScale(type);
+  drawDataPoints(type);
 
 });
+
+function drawDataPoints(type) {
+  if (type == 'author') {
+    drawArticlePoints(all_data);
+  } else {
+    drawDatePoints(all_data);
+  }
+}
+
+function drawDatePoints(data) {
+  var flattenedArray = [];
+  data.forEach(function(datum) {
+    flattenedArray = flattenedArray.concat(datum.nyt);
+  })
+
+  focus.selectAll('.author-column')
+          .attr('transform', 'translate(0,0)');
+
+  var points = focus.selectAll('.data-point')
+                    .data(flattenedArray, function(d) { return d.publication_dt; })
+                    .transition()
+                    .delay(function(d, i) {
+                      return i * .5;
+                    })
+                    .duration(1000)
+                    .attr('cx', function(d) { return xScale(parseTime(d.publication_dt)); })
+  
+}
 
 function drawArticlePoints(data) {
   var authorCount = 0;
@@ -113,6 +158,7 @@ function drawArticlePoints(data) {
           .attr('xlink:target', '_blank')
           .attr('xlink:href', function(d) { return d.url})
           .append('circle')
+          .attr('class', 'data-point')
           .attr('cy', function(d, i) { return yScale(i); })
           .attr('r', circleRadius)
           .attr('fill', function(d, i) {
@@ -170,10 +216,8 @@ function handleMouseOut(d) {
   d3.select('#hover-box').remove();
 }
 
-function drawXAxis() {
-  focus.append('g')
-       .attr('class', 'axis axis--x')
-       .attr('transform', 'translate(0,' + (height - xAxisSpace) +')')
+function updateXAxis(type) {
+
 
   focus.select('.axis--x').call(d3.axisBottom(xScale))
 
@@ -183,14 +227,6 @@ function drawXAxis() {
        .attr('dx', '-.8em')
        .attr('dy', '.15em')
        .attr('transform', 'rotate(-65)');
-}
-
-function updateXAxis(type) {
-  if (type == 'date') {
-
-  } else {
-
-  }
 }
 
 function nytAPICall(name, api_key) {

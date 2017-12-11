@@ -100,8 +100,7 @@ d3.json('author_data.json', function(data) {
   flattenedData = removeDuplicates(rawFlattened);
   graphType = d3.select('input[name="reviews"]:checked').node().value;
   // set the domain
-  yScale.domain([0, d3.max(data.map(function(d) { return d.nyt.length }))]);
-  colorScale.domain([0, data.length])
+  updateYAndColorScale(data);
 
   // append the x axis class
   focus.append('g')
@@ -109,12 +108,17 @@ d3.json('author_data.json', function(data) {
        .attr('transform', 'translate(0,' + (height - xAxisSpace) +')')
 
   bindXScale(graphType);
-  drawPoints(flattenedData);
   drawDataPoints(graphType, flattenedData);
 
 });
 
+function updateYAndColorScale(data) {
+  yScale.domain([0, d3.max(data.map(function(d) { return d.nyt.length }))]);
+  colorScale.domain([0, data.length])
+}
+
 function drawDataPoints(type, data) {
+  drawPoints(flattenedData);
   if (type == 'author') {
     drawAuthorPoints(data);
   } else {
@@ -124,7 +128,7 @@ function drawDataPoints(type, data) {
 
 function drawDatePoints(data) {
   focus.selectAll('.data-point')
-       .data(data)
+       .data(data, function(d) { return d.url; })
        .transition()
        .duration(1000)
        .attr('cx', function(d) { return xScale(parseTime(d.publication_dt)); })
@@ -132,7 +136,7 @@ function drawDatePoints(data) {
 
 function drawAuthorPoints(data) {
   focus.selectAll('.data-point')
-       .data(data)
+       .data(data, function(d) { return d.url;})
        .transition()
        .duration(1000)
        .attr('cx', function(d) { return (xScale(d['book_author']) + xScale.bandwidth()/2); })
@@ -143,11 +147,8 @@ function drawAuthorPoints(data) {
 }
 
 function drawPoints(data) {
-  var articles = focus.append('g')
-                      .attr('class', 'articles');
-
-  focus.selectAll('circle')
-          .data(data, function(d) { return d; })
+  focus.selectAll('a')
+          .data(data, function(d) { return d.url;})
           .enter()
           .append('a')
           .attr('xlink:target', '_blank')
@@ -278,11 +279,32 @@ function nytAPICall(name, api_key) {
     var newEntry = {'name': toTitleCase(name), 'nyt': result.results};
     all_data.push(newEntry);
     all_data = alphabetize(all_data);
-    var flattenResult = removeDuplicates(flattenData(all_data));
+    updateYAndColorScale(all_data);
+    flattenedData = removeDuplicates(flattenData(all_data));
+    bindXScale(graphType);
+    drawPoints(flattenedData);
+    drawDataPoints(graphType, flattenedData);
     return result;
   }).fail(function(err) {
     throw err;
   });
+}
+
+function updatePoints(type, data) {
+  focus.selectAll('a')
+                     .data(data, function(d) { return d.url; })
+  .enter().append('a')
+  .attr('xlink:target', '_blank')
+  .attr('xlink:href', function(d) { console.log(d); return d.url; })
+  .append('circle')
+  .attr('class', 'data-point')
+  .attr('fill', function(d) {
+    return d3.interpolateSpectral(colorScale(d['author_num']));
+  })
+  .attr('r', circleRadius)
+  .on('mouseover', handleMouseOver)
+  .on('mouseout', handleMouseOut);;
+
 }
 
 function alphabetize(data) {

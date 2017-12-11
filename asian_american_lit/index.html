@@ -290,23 +290,6 @@ function nytAPICall(name, api_key) {
   });
 }
 
-function updatePoints(type, data) {
-  focus.selectAll('a')
-                     .data(data, function(d) { return d.url; })
-  .enter().append('a')
-  .attr('xlink:target', '_blank')
-  .attr('xlink:href', function(d) { console.log(d); return d.url; })
-  .append('circle')
-  .attr('class', 'data-point')
-  .attr('fill', function(d) {
-    return d3.interpolateSpectral(colorScale(d['author_num']));
-  })
-  .attr('r', circleRadius)
-  .on('mouseover', handleMouseOver)
-  .on('mouseout', handleMouseOut);;
-
-}
-
 function alphabetize(data) {
   data.sort(function(a, b) {
     var splitA = a.name.split(" ");

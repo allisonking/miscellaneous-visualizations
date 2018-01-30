@@ -20,8 +20,14 @@ var subscribe = '{"type": "subscribe","product_ids": ["ETH-USD"],"channels": [{"
 var firstMessageReceived = false;
 var center;
 var sigma = 0.5;
+var buffer = 0.1;
 
 initializeWebSocket();
+console.log(new Date());
+setTimeout(function(){
+  websocket.close();
+  console.log(new Date());
+}, 5*60*1000);
 
 function initializeWebSocket() {
   websocket = new WebSocket(wsUri);
@@ -50,12 +56,15 @@ function onMessage(evt) {
     firstMessageReceived = true;
     center = +point['price'];
     d3.select('#info')
-      .text(point['low_24h'] + " , " + point['high_24h']);
+      .text("Real time visualization of Ethereum prices");
     drawAxes(center-sigma, center+sigma);
   }
 
-  if (+point['price'] > center+sigma || +point['price'] < center-sigma) {
-    sigma+=0.25;
+  if (+point['price'] > center+sigma) {
+    sigma+= +point['price'] - (center+sigma) + buffer;
+    drawAxes(center-sigma, center+sigma);
+  } else if (+point['price'] < center-sigma) {
+    sigma+= (center-sigma) - +point['price'] + buffer;
     drawAxes(center-sigma, center+sigma);
   }
 
@@ -165,8 +174,6 @@ function tick() {
 
   // Pop the old data point off the front.
   data.shift();
-
-
 
 }
 

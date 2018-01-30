@@ -9,6 +9,7 @@
 }
 
 </style>
+<p id="info"> </p>
 <svg width="960" height="500"></svg>
 <script src="//d3js.org/d3.v4.min.js"></script>
 <script>
@@ -16,6 +17,9 @@
 var wsUri = "wss://ws-feed.gdax.com";
 // the subscription message to tell the websocket what kind of data we are interested in
 var subscribe = '{"type": "subscribe","product_ids": ["ETH-USD"],"channels": [{"name": "ticker","product_ids": ["ETH-USD"]}]}';
+var firstMessageReceived = false;
+var center;
+var sigma = 0.5;
 
 initializeWebSocket();
 
@@ -29,15 +33,32 @@ function initializeWebSocket() {
 
 function onOpen(evt) {
   console.log("connected to websocket!");
+  d3.select('#info')
+    .text('Connected to the websocket! Waiting for a transaction...');
   // send the subscription message
   websocket.send(subscribe);
 }
 
 function onMessage(evt) {
   var point = JSON.parse(evt.data);
-  if (point['type'] == 'ticker') {
-    data.push(+point['price'])
+  if (point['type'] != 'ticker') {
+    return;
   }
+  data.push(+point['price']);
+
+  if (!firstMessageReceived) {
+    firstMessageReceived = true;
+    center = +point['price'];
+    d3.select('#info')
+      .text(point['low_24h'] + " , " + point['high_24h']);
+    drawAxes(center-sigma, center+sigma);
+  }
+
+  if (+point['price'] > center+sigma || +point['price'] < center-sigma) {
+    sigma+=0.25;
+    drawAxes(center-sigma, center+sigma);
+  }
+
   redrawLine();
   if (data.length > 40) {
     d3.select('.line')
@@ -68,12 +89,29 @@ var svg = d3.select("svg"),
     g = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
 
 var x = d3.scaleLinear()
-    .domain([1, n - 2])
-    .range([0, width]);
+          .domain([1, n - 2])
+          .range([0, width]);
 
 var y = d3.scaleLinear()
-    .domain([1060, 1070])
-    .range([height, 0]);
+          .range([height, 0]);
+
+function drawAxes(low, high) {
+
+ y.domain([low, high])
+
+ d3.select('.axis--x')
+   .attr("transform", "translate(0," + y(low) + ")")
+   .call(d3.axisBottom(x));
+
+ d3.select('.axis--y')
+   .call(d3.axisLeft(y));
+}
+
+g.append("g")
+ .attr("class", "axis axis--x")
+
+g.append("g")
+ .attr("class", "axis axis--y")
 
 var line = d3.line()
     .curve(d3.curveBasis)
@@ -86,22 +124,13 @@ g.append("defs").append("clipPath")
     .attr("width", width)
     .attr("height", height);
 
-g.append("g")
-    .attr("class", "axis axis--x")
-    .attr("transform", "translate(0," + y(1000) + ")")
-    .call(d3.axisBottom(x));
-
-g.append("g")
-    .attr("class", "axis axis--y")
-    .call(d3.axisLeft(y));
-
 var transition = g.append("g")
     .attr("clip-path", "url(#clip)")
   .append("path")
     .datum(data)
     .attr("class", "line")
   .transition()
-    .duration(2000)
+    .duration(3000)
     .ease(d3.easeLinear)
     //.on("start", tick);
 
